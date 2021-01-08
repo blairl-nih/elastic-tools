@@ -28,11 +28,11 @@ afterAll(() => {
     nock.enableNetConnect();
 })
 
-describe('ElasticTools', async() => {
+describe('ElasticTools', () => {
 
-    describe('createTimestampedIndex', async () => {
+    describe('createTimestampedIndex', () => {
 
-        it('creates the index', async () => {            
+        it('creates the index', async () => {
             const mappings = require(path.join(__dirname, 'data', '/mappings.json'));
             const settings = require(path.join(__dirname, 'data', 'settings.json'));
 
@@ -40,7 +40,7 @@ describe('ElasticTools', async() => {
             const urlRegex = /\/(.*)/;
             let interceptedIdx = '';
 
-            const scope = nock('http://example.org:9200')            
+            const scope = nock('http://example.org:9200')
             .put(
                 (uri) => {
                     //So we need to get the index name the function created, and in elasticsearch,
@@ -52,24 +52,24 @@ describe('ElasticTools', async() => {
                     } else {
                         return false;
                     }
-                }, 
+                },
                 {
                     settings: settings.settings,
                     mappings: mappings.mappings
                 }
             )
             .reply(200, {"acknowledged":true,"shards_acknowledged":true,"index":interceptedIdx} );
-      
+
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-      
+            });
+
             const estools = new ElasticTools(logger, client);
-        
+
             const expectedTime = Date.now();
             const indexName = await estools.createTimestampedIndex(aliasName, mappings, settings);
-            
+
             //Let's make sure the nock call was called
             expect(scope.isDone()).toBeTruthy();
 
@@ -91,14 +91,14 @@ describe('ElasticTools', async() => {
 
     });
 
-    describe('createIndex', async () => {
+    describe('createIndex', () => {
 
-        it('creates the index', async () => { 
+        it('creates the index', async () => {
 
             const now = moment();
             const timestamp = now.format("YYYYMMDD_HHmmss");
             const indexName = 'bryantestidx' + timestamp;
-          
+
             const mappings = require(path.join(__dirname, 'data', '/mappings.json'));
             const settings = require(path.join(__dirname, 'data', 'settings.json'));
 
@@ -108,14 +108,14 @@ describe('ElasticTools', async() => {
                     mappings: mappings.mappings
                 })
                 .reply(200, {"acknowledged":true,"shards_acknowledged":true,"index":indexName} );
-          
+
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-          
+            });
+
             const estools = new ElasticTools(logger, client);
-          
+
             await estools.createIndex(indexName, mappings, settings);
 
             expect(scope.isDone()).toBeTruthy();
@@ -125,7 +125,7 @@ describe('ElasticTools', async() => {
             const now = moment();
             const timestamp = now.format("YYYYMMDD_HHmmss");
             const indexName = 'bryantestidx' + timestamp;
-          
+
             const mappings = require(path.join(__dirname, 'data', '/mappings.json'));
             const settings = require(path.join(__dirname, 'data', 'settings.json'));
 
@@ -134,7 +134,7 @@ describe('ElasticTools', async() => {
                     settings: settings.settings,
                     mappings: mappings.mappings
                 })
-                .reply(400, 
+                .reply(400,
                     {
                         "error": {
                         "root_cause": [
@@ -153,14 +153,14 @@ describe('ElasticTools', async() => {
                         "status": 400
                     }
                 );
-          
+
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-                      
+            });
+
             const estools = new ElasticTools(logger, client);
-          
+
             //TODO: Actually check and see if we get an logged error when the
             //exception occurs.
             try {
@@ -168,28 +168,28 @@ describe('ElasticTools', async() => {
             } catch (err) {
                 expect(err).not.toBeNull();
             }
-            
+
             expect(scope.isDone()).toBeTruthy();
         })
     })
 
-    describe('optimizeIndex', async () => {
+    describe('optimizeIndex', () => {
         it("optimizes the index", async() => {
             const indexName = 'bryantestidx';
-          
+
             const scope = nock('http://example.org:9200')
                 .post(`/${indexName}/_forcemerge?max_num_segments=1`, body => true)
                 .reply(200, {"_shards":{"total":2,"successful":1,"failed":0}});
-          
+
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-          
+            });
+
             const estools = new ElasticTools(logger, client);
-          
+
             await estools.optimizeIndex(indexName);
-            
+
             expect(scope.isDone()).toBeTruthy();
         })
 
@@ -207,106 +207,106 @@ describe('ElasticTools', async() => {
         /*
         it("optimizes the index with delay", async() => {
             const indexName = 'bryantestidx';
-          
+
             const scope = nock('http://example.org:9200')
                 .post(`/${indexName}/_forcemerge?max_num_segments=1`, body => true)
                 .delay({
                     head: 89000
                 })
                 .reply(200, {"_shards":{"total":2,"successful":1,"failed":0}});
-                
-          
+
+
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-          
+            });
+
             const estools = new ElasticTools(logger, client);
-          
+
             await estools.optimizeIndex(indexName);
-            
+
             expect(scope.isDone()).toBeTruthy();
         }, 100000)
 
         it("optimizes the index with delay", async() => {
             const indexName = 'bryantestidx';
-          
+
             const scope = nock('http://example.org:9200')
                 .post(`/${indexName}/_forcemerge?max_num_segments=1`, body => true)
                 .delay({
                     head: 95000
                 })
                 .reply(200, {"_shards":{"total":2,"successful":1,"failed":0}});
-                
-          
+
+
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-          
+            });
+
             const estools = new ElasticTools(logger, client);
-          
+
             try {
                 await estools.optimizeIndex(indexName);
             } catch (err) {
                 expect(err).not.toBeNull();
             }
-            
+
             expect(scope.isDone()).toBeTruthy();
         }, 110000)
         */
     })
 
-    describe('getIndicesOlderThan', async () => {
+    describe('getIndicesOlderThan', () => {
         it('returns 1 when 1 is old', async() => {
             const indexName = 'bryantestidx';
-            
+
             const scope = nock('http://example.org:9200')
                 .get(`/${indexName}*/_settings/index.creation_date`)
                 .reply(200, {
                     "bryantestidx_1":{ "settings": {"index": {"creation_date":"1523901276157"}}}
                 });
-            
+
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-            
+
             const expected = ["bryantestidx_1"];
             const indices = await estools.getIndicesOlderThan(indexName, 1525225677000);
-            
+
             expect(indices).toEqual(expected);
             expect(scope.isDone()).toBeTruthy();
         });
 
         it('returns 0 when 1 not old', async() => {
             const indexName = 'bryantestidx';
-            
+
             const scope = nock('http://example.org:9200')
                 .get(`/${indexName}*/_settings/index.creation_date`)
                 .reply(200, {
                     "bryantestidx_1":{ "settings": {"index": {"creation_date":"1525225677001"}}}
                 });
-            
+
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-            
+
             const expected = [];
             const indices = await estools.getIndicesOlderThan(indexName, 1525225677000);
-            
+
             expect(indices).toEqual(expected);
             expect(scope.isDone()).toBeTruthy();
         });
 
         it('returns 2 in order when 2 of 3 are old', async() => {
             const indexName = 'bryantestidx';
-            
+
             const scope = nock('http://example.org:9200')
                 .get(`/${indexName}*/_settings/index.creation_date`)
                 .reply(200, {
@@ -314,20 +314,20 @@ describe('ElasticTools', async() => {
                     "bryantestidx_2":{ "settings": {"index": {"creation_date":"1525225676001"}}},
                     "bryantestidx_3":{ "settings": {"index": {"creation_date":"1525225676002"}}}
                 });
-            
+
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-            
+
             const expected = ['bryantestidx_3','bryantestidx_2'];
             const indices = await estools.getIndicesOlderThan(indexName, 1525225677000);
-            
+
             expect(indices).toEqual(expected);
             expect(scope.isDone()).toBeTruthy();
-        });        
+        });
 
         it('handles server error', async () => {
             const indexName = 'bryantestidx';
@@ -339,8 +339,8 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
 
             expect.assertions(2);
@@ -358,8 +358,8 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
             try {
                 const indices = await estools.getIndicesOlderThan();
@@ -369,13 +369,13 @@ describe('ElasticTools', async() => {
                 );
             }
         });
-        
+
     })
 
 
-    describe('setAliasToSingleIndex', async () => {
+    describe('setAliasToSingleIndex', () => {
 
-        const aliasName = 'bryantestidx';        
+        const aliasName = 'bryantestidx';
 
         it ('adds without removing', async () => {
 
@@ -401,10 +401,10 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-                        
+
             await estools.setAliasToSingleIndex(aliasName, indexName);
 
             expect(nock.isDone()).toBeTruthy();
@@ -439,30 +439,30 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-                        
+
             await estools.setAliasToSingleIndex(aliasName, indexName);
 
-            expect(nock.isDone()).toBeTruthy();            
+            expect(nock.isDone()).toBeTruthy();
         })
 
     });
 
-    describe('updateAlias', async () => {
+    describe('updateAlias', () => {
         //Gonna use this a lot here, so set it once
         const aliasName = 'bryantestidx';
 
         it('checks for at least one add or remove', async ()=> {
-            
+
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-            
+
             //No params
             try {
                 await estools.updateAlias(aliasName);
@@ -471,7 +471,7 @@ describe('ElasticTools', async() => {
                     message: "You must add or remove at least one index"
                 });
             }
-            
+
             //One is not a string or array
             try {
                 await estools.updateAlias(aliasName, { add: 1});
@@ -507,10 +507,10 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-                        
+
             await estools.updateAlias(aliasName, { add: index});
 
             expect(nock.isDone()).toBeTruthy();
@@ -532,10 +532,10 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-                        
+
             await estools.updateAlias(aliasName, { add: index});
 
             expect(nock.isDone()).toBeTruthy();
@@ -556,13 +556,13 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-                        
+
             await estools.updateAlias(aliasName, { remove: index});
 
-            expect(nock.isDone()).toBeTruthy();            
+            expect(nock.isDone()).toBeTruthy();
         })
 
         it('swaps one for one', async() => {
@@ -581,13 +581,13 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-                        
+
             await estools.updateAlias(aliasName, { add, remove });
 
-            expect(nock.isDone()).toBeTruthy();             
+            expect(nock.isDone()).toBeTruthy();
         })
 
         it('adds many', async() => {
@@ -604,14 +604,14 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-                        
+
             await estools.updateAlias(aliasName, { add: indices});
 
             expect(nock.isDone()).toBeTruthy();
-            
+
         })
 
         it('removes many', async() => {
@@ -628,13 +628,13 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-                        
+
             await estools.updateAlias(aliasName, { remove: indices});
 
-            expect(nock.isDone()).toBeTruthy();            
+            expect(nock.isDone()).toBeTruthy();
         })
 
         it('swaps many for many', async() => {
@@ -653,13 +653,13 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-                        
+
             await estools.updateAlias(aliasName, { add, remove });
 
-            expect(nock.isDone()).toBeTruthy();             
+            expect(nock.isDone()).toBeTruthy();
         })
 
         it('handles server error', async () => {
@@ -667,7 +667,7 @@ describe('ElasticTools', async() => {
         });
     })
 
-    describe('getIndicesForAlias', async () => {
+    describe('getIndicesForAlias', () => {
         ///_alias/<%=name%>
 
         it('returns indices', async () => {
@@ -676,7 +676,7 @@ describe('ElasticTools', async() => {
             //Set the prefix
             const aliasName = 'bryantestidx';
             const indexName = aliasName + "_1";
-            
+
             //This is the nock for getIndicesOlderThan
             //If the creation date is now, then there is nothing older.
             const scope = nock('http://example.org:9200')
@@ -692,16 +692,16 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
-                        
+
             const expectedIndices = [indexName];
             const actualIndices = await estools.getIndicesForAlias(aliasName);
 
             //Check that all of our expected calls are done
             expect(nock.isDone()).toBeTruthy();
-            
+
             //Check the data is as expected.
             expect(actualIndices).toEqual(expectedIndices);
         })
@@ -719,16 +719,16 @@ describe('ElasticTools', async() => {
                 const client = new elasticsearch.Client({
                     host: 'http://example.org:9200',
                     apiVersion: '5.6'
-                });            
-                
+                });
+
             const estools = new ElasticTools(logger, client);
-                        
+
             const expectedIndices = [];
             const actualIndices = await estools.getIndicesForAlias(aliasName);
 
             //Check that all of our expected calls are done
             expect(nock.isDone()).toBeTruthy();
-            
+
             //Check the data is as expected.
             expect(actualIndices).toEqual(expectedIndices);
         });
@@ -758,12 +758,12 @@ describe('ElasticTools', async() => {
         });
     })
 
-    describe('indexDocument', async () => {
+    describe('indexDocument', () => {
 
     });
 
-    describe('indexDocumentBulk', async () => {
-        
+    describe('indexDocumentBulk', () => {
+
         const goodCreateResponse = {
             "took": 11,
             "errors": false,
@@ -848,7 +848,7 @@ describe('ElasticTools', async() => {
                 }
             ]
         }
-        
+
         const errorResponse = {
             "took": 44,
             "errors": true,
@@ -905,7 +905,7 @@ describe('ElasticTools', async() => {
             ],
             [
                 'creates than updates without issue',
-                [ 
+                [
                     [ "12", { "username": "bob", "message": "tweettweet" } ],
                     [ "12", { "username": "bob", "message": "tweettweet" } ]
                 ],
@@ -916,7 +916,7 @@ describe('ElasticTools', async() => {
                     updated: ['12'],
                     errors: []
                 }
-            ], 
+            ],
             [
                 'has errors in documents',
                 //yeah, this looks valid... we are still gonna send back an error. :)
@@ -943,19 +943,19 @@ describe('ElasticTools', async() => {
             //    'does everything',
             //]
         ])(
-            'indexes %s', 
+            'indexes %s',
             async (name, docArr, reqbody, response, expected) => {
                 const scope = nock('http://example.org:9200')
                 .post(`/_bulk`, (body) => {
-                    return body === reqbody;                    
+                    return body === reqbody;
                 })
                 .reply(200, response);
 
                 const client = new elasticsearch.Client({
                     host: 'http://example.org:9200',
                     apiVersion: '5.6'
-                });            
-        
+                });
+
                 const estools = new ElasticTools(logger, client);
 
                 const actual = await estools.indexDocumentBulk("twitter", "tweet", docArr);
@@ -975,15 +975,15 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-    
+            });
+
             const estools = new ElasticTools(logger, client);
 
             expect.assertions(2);
             try {
                 const actual = await estools.indexDocumentBulk(
-                    "twitter", 
-                    "tweet", 
+                    "twitter",
+                    "tweet",
                     [ [ "11", { "username": "bob", "message": "tweettweet" } ] ]
                 );
             } catch (err) {
@@ -991,13 +991,13 @@ describe('ElasticTools', async() => {
                     message: "Internal Server Error"
                 })
             }
-            
+
             expect(nock.isDone()).toBeTruthy();
         })
 
     });
 
-    describe('deleteIndex', async () => {
+    describe('deleteIndex', () => {
 
         it('deletes the index', async () => {
             const aliasName = 'bryantestidx';
@@ -1012,8 +1012,8 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
 
             await estools.deleteIndex(aliasName + "_2");
@@ -1024,14 +1024,14 @@ describe('ElasticTools', async() => {
 
     });
 
-    
-    describe('cleanupOldIndices', async () => {
+
+    describe('cleanupOldIndices', () => {
         it ('has nothing to clean', async () => {
             const now = Date.now();
 
             //Set the prefix
             const aliasName = 'bryantestidx';
-            
+
             //This is the nock for getIndicesOlderThan
             //If the creation date is now, then there is nothing older.
             const scope = nock('http://example.org:9200')
@@ -1043,8 +1043,8 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
 
             await estools.cleanupOldIndices(aliasName);
@@ -1053,7 +1053,7 @@ describe('ElasticTools', async() => {
         })
 
         it ('cleans up nothing because alias', async () => {
-            
+
             const now = Date.now();
 
             //Set the prefix
@@ -1082,8 +1082,8 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
             await estools.cleanupOldIndices(aliasName);
 
@@ -1091,7 +1091,7 @@ describe('ElasticTools', async() => {
         })
 
         it ('cleans up indices', async () => {
-            
+
             const now = Date.now();
 
             //Set the prefix
@@ -1128,13 +1128,13 @@ describe('ElasticTools', async() => {
             const client = new elasticsearch.Client({
                 host: 'http://example.org:9200',
                 apiVersion: '5.6'
-            });            
-            
+            });
+
             const estools = new ElasticTools(logger, client);
             await estools.cleanupOldIndices(aliasName);
 
             expect(nock.isDone()).toBeTruthy();
         })
     });
-    
+
 })
