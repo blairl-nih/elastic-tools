@@ -33,6 +33,6 @@
     "jest": "^23.1.0",
     "nock": "^9.3.3",
     "winston": "^3.0.0",
-    "winston-null-transport": "git+https://github.com/NCIOCPL/winston-null-transport.git#1.0.0"
+    "winston-null-transport": "git+https://github.com/NCIOCPL/winston-null-transport.git#v1.0.1"
   }
 }
