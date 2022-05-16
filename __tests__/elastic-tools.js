@@ -1,4 +1,4 @@
-const elasticsearch         = require('elasticsearch');
+const elasticsearch         = require('@elastic/elasticsearch');
 const moment                = require('moment');
 const nock                  = require('nock');
 const path                  = require('path');
@@ -15,9 +15,42 @@ const logger = winston.createLogger({
     ]
 });
 
+/*
+    Some long-running tests are particularly annoying to run under normal
+    circumstances, but should always run in GitHub Actions.  Replacing it()
+    with testOnGithubIt() provides a convenient way to accomplish this goal.
+*/
+const ON_GITHUB = process.env.GITHUB_ACTIONS !== undefined;
+const testOnGithubIt = (condition) => condition ? it : it.skip;
+
+
+beforeEach(() => {
+
+    // Each time a new client is created, before the first query executes, the client checks that it's connected to Elasticsearch.
+    const scope = nock('http://example.org:9200')
+    .get('/')
+    .reply(200, {
+        "name": "5fdf33196b0f",
+        "cluster_name": "docker-cluster",
+        "cluster_uuid": "A7Fv9yZRT_u4Wf8cJwEYXg",
+        "version": {
+            "number": "7.9.2",
+            "build_flavor": "default",
+            "build_type": "docker",
+            "build_hash": "d34da0ea4a966c4e49417f2da2f244e3e97b4e6e",
+            "build_date": "2020-09-23T00:45:33.626720Z",
+            "build_snapshot": false,
+            "lucene_version": "8.6.2",
+            "minimum_wire_compatibility_version": "6.8.0",
+            "minimum_index_compatibility_version": "6.0.0-beta1"
+        },
+        "tagline": "You Know, for Search"
+    });
+});
+
 beforeAll(() => {
     nock.disableNetConnect();
-})
+});
 
 //After each test, cleanup any remaining mocks
 afterEach(() => {
@@ -26,7 +59,7 @@ afterEach(() => {
 
 afterAll(() => {
     nock.enableNetConnect();
-})
+});
 
 describe('ElasticTools', () => {
 
@@ -61,8 +94,7 @@ describe('ElasticTools', () => {
             .reply(200, {"acknowledged":true,"shards_acknowledged":true,"index":interceptedIdx} );
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -110,8 +142,7 @@ describe('ElasticTools', () => {
                 .reply(200, {"acknowledged":true,"shards_acknowledged":true,"index":indexName} );
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -119,7 +150,7 @@ describe('ElasticTools', () => {
             await estools.createIndex(indexName, mappings, settings);
 
             expect(scope.isDone()).toBeTruthy();
-        })
+        });
 
         it('handles index already exists', async() => {
             const now = moment();
@@ -155,8 +186,7 @@ describe('ElasticTools', () => {
                 );
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -170,8 +200,9 @@ describe('ElasticTools', () => {
             }
 
             expect(scope.isDone()).toBeTruthy();
-        })
-    })
+        });
+
+    });
 
     describe('optimizeIndex', () => {
         it("optimizes the index", async() => {
@@ -182,8 +213,7 @@ describe('ElasticTools', () => {
                 .reply(200, {"_shards":{"total":2,"successful":1,"failed":0}});
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -191,7 +221,7 @@ describe('ElasticTools', () => {
             await estools.optimizeIndex(indexName);
 
             expect(scope.isDone()).toBeTruthy();
-        })
+        });
 
         it("handles a 504 response", async () => {
 
@@ -201,24 +231,24 @@ describe('ElasticTools', () => {
 
         });
 
-        //The following test simulate slow responses, something we have seen with Elasticsearch.
+
+        //The following tests simulate slow responses, something we have seen with Elasticsearch.
         //So we increase the timeout to 1.5 minutes for this request. These need to be tested upon change,
-        //but it would slow down tests.
-        /*
-        it("optimizes the index with delay", async() => {
+        //but it would slow down regular tests, so we use testOnGithubIt() to make it conditional.
+        testOnGithubIt("optimizes the index when processing time approaches the timeout", async() => {
             const indexName = 'bryantestidx';
 
             const scope = nock('http://example.org:9200')
                 .post(`/${indexName}/_forcemerge?max_num_segments=1`, body => true)
                 .delay({
-                    head: 89000
+                    // Simulate the server found, and a long-running request, but shorter than timeout.
+                    body: 89000
                 })
                 .reply(200, {"_shards":{"total":2,"successful":1,"failed":0}});
 
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -226,22 +256,22 @@ describe('ElasticTools', () => {
             await estools.optimizeIndex(indexName);
 
             expect(scope.isDone()).toBeTruthy();
-        }, 100000)
+        }, 100000);
 
-        it("optimizes the index with delay", async() => {
+        testOnGithubIt("doesn't time out for a long-running request when the server is found.", async() => {
             const indexName = 'bryantestidx';
 
             const scope = nock('http://example.org:9200')
-                .post(`/${indexName}/_forcemerge?max_num_segments=1`, body => true)
+                .post( url => true, body => true)
                 .delay({
-                    head: 95000
+                    // Simulate the server found, and a long-running request.
+                    body: 95000
                 })
                 .reply(200, {"_shards":{"total":2,"successful":1,"failed":0}});
 
-
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200',
+                maxRetries: 0   // Elasticsearch will retry, but scope is single use. Alternatively, .persist() the scope
             });
 
             const estools = new ElasticTools(logger, client);
@@ -249,13 +279,53 @@ describe('ElasticTools', () => {
             try {
                 await estools.optimizeIndex(indexName);
             } catch (err) {
+                // This assertion should never be hit.
                 expect(err).not.toBeNull();
             }
 
             expect(scope.isDone()).toBeTruthy();
-        }, 110000)
-        */
-    })
+        }, 110000);
+
+        /**
+         * This test is deliberately disabled due to a nuanced bug we've decided to ignore for now.
+         * In short, if the connection timeout limit is reached, Elasticsearch returns an error, but
+         * doesn't actually close the connection. According to Elasticsearch documentation, this is
+         * "normal" for node applications. This being a rare circumstance, we've decided to punt on
+         * the issue for now and may revisit it at a later time.
+         */
+        // testOnGithubIt("throws a timeout error when the server doesn't exist/doesn't respond.", async () => {
+        //     const indexName = 'bryantestidx';
+
+        //     const scope = nock('http://example.org:9200')
+        //         .post(url => true, body => true)
+        //         .delay({
+        //             // Simulate the server not being found/not responding.
+        //             head: 95000
+        //         })
+        //         .reply(200, { "_shards": { "total": 2, "successful": 1, "failed": 0 } });
+
+        //     const client = new elasticsearch.Client({
+        //         node: 'http://example.org:9200',
+        //         maxRetries: 0   // Elasticsearch will retry, but scope is single use. Alternatively, .persist() the scope
+        //     });
+
+        //     const estools = new ElasticTools(logger, client);
+
+        //     expect.assertions(2);
+        //     try {
+        //         await estools.optimizeIndex(indexName);
+        //         console.log("Continued on!")
+        //         debugger;
+        //     } catch (err) {
+        //         expect(err.name).toBe('TimeoutError');
+        //         debugger;
+        //     }
+
+        //     expect(scope.isDone()).toBeTruthy();
+
+        // }, 110000);
+
+    });
 
     describe('getIndicesOlderThan', () => {
         it('returns 1 when 1 is old', async() => {
@@ -268,8 +338,7 @@ describe('ElasticTools', () => {
                 });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -291,8 +360,7 @@ describe('ElasticTools', () => {
                 });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -316,8 +384,7 @@ describe('ElasticTools', () => {
                 });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -337,8 +404,7 @@ describe('ElasticTools', () => {
             .reply(500);
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -356,8 +422,7 @@ describe('ElasticTools', () => {
         it('checks alias name', async () => {
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -399,8 +464,7 @@ describe('ElasticTools', () => {
                 .reply(200, { "acknowledged": true });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -437,8 +501,7 @@ describe('ElasticTools', () => {
                 .reply(200, { "acknowledged": true });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -457,8 +520,7 @@ describe('ElasticTools', () => {
         it('checks for at least one add or remove', async ()=> {
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -505,8 +567,7 @@ describe('ElasticTools', () => {
             .reply(200, { "acknowledged": true });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -530,8 +591,7 @@ describe('ElasticTools', () => {
             .reply(200, { "acknowledged": true });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -554,8 +614,7 @@ describe('ElasticTools', () => {
             .reply(200, { "acknowledged": true });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -579,8 +638,7 @@ describe('ElasticTools', () => {
             .reply(200, { "acknowledged": true });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -602,8 +660,7 @@ describe('ElasticTools', () => {
             .reply(200, { "acknowledged": true });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -626,8 +683,7 @@ describe('ElasticTools', () => {
             .reply(200, { "acknowledged": true });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -651,8 +707,7 @@ describe('ElasticTools', () => {
             .reply(200, { "acknowledged": true });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -690,8 +745,7 @@ describe('ElasticTools', () => {
                 });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -717,8 +771,7 @@ describe('ElasticTools', () => {
                 });
 
                 const client = new elasticsearch.Client({
-                    host: 'http://example.org:9200',
-                    apiVersion: '5.6'
+                    node: 'http://example.org:9200'
                 });
 
             const estools = new ElasticTools(logger, client);
@@ -740,8 +793,7 @@ describe('ElasticTools', () => {
                 .reply(500);
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -952,8 +1004,7 @@ describe('ElasticTools', () => {
                 .reply(200, response);
 
                 const client = new elasticsearch.Client({
-                    host: 'http://example.org:9200',
-                    apiVersion: '5.6'
+                    node: 'http://example.org:9200'
                 });
 
                 const estools = new ElasticTools(logger, client);
@@ -967,19 +1018,18 @@ describe('ElasticTools', () => {
 
         it('throws on server error', async () => {
             const scope = nock('http://example.org:9200')
-            .post(`/_bulk`, (body) => {
+            .post('/_bulk', (body) => {
                 return true
             })
             .reply(500);
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
 
-            expect.assertions(2);
+            expect.assertions(4);
             try {
                 const actual = await estools.indexDocumentBulk(
                     "twitter",
@@ -987,9 +1037,9 @@ describe('ElasticTools', () => {
                     [ [ "11", { "username": "bob", "message": "tweettweet" } ] ]
                 );
             } catch (err) {
-                expect(err).toMatchObject({
-                    message: "Internal Server Error"
-                })
+                expect(err.name).toBe('ResponseError');
+                expect(err.statusCode).toBe(500);
+                expect(err.body).toBe('');
             }
 
             expect(nock.isDone()).toBeTruthy();
@@ -1010,8 +1060,7 @@ describe('ElasticTools', () => {
                 })
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -1041,8 +1090,7 @@ describe('ElasticTools', () => {
                 });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -1080,8 +1128,7 @@ describe('ElasticTools', () => {
                 });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
@@ -1123,18 +1170,18 @@ describe('ElasticTools', () => {
                 .delete(`/${aliasName}_3`)
                 .reply(200, {
                     "acknowledged": true
-                })
+                });
 
             const client = new elasticsearch.Client({
-                host: 'http://example.org:9200',
-                apiVersion: '5.6'
+                node: 'http://example.org:9200'
             });
 
             const estools = new ElasticTools(logger, client);
             await estools.cleanupOldIndices(aliasName);
 
             expect(nock.isDone()).toBeTruthy();
-        })
+        });
+
     });
 
-})
+});
