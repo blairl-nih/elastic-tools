@@ -235,7 +235,7 @@ describe('ElasticTools', () => {
         //The following tests simulate slow responses, something we have seen with Elasticsearch.
         //So we increase the timeout to 1.5 minutes for this request. These need to be tested upon change,
         //but it would slow down regular tests, so we use testOnGithubIt() to make it conditional.
-        testOnGithubIt()("optimizes the index when processing time approaches the timeout", async() => {
+        testOnGithubIt("optimizes the index when processing time approaches the timeout", async() => {
             const indexName = 'bryantestidx';
 
             const scope = nock('http://example.org:9200')
@@ -258,7 +258,7 @@ describe('ElasticTools', () => {
             expect(scope.isDone()).toBeTruthy();
         }, 100000);
 
-        testOnGithubIt()("doesn't time out for a long-running request when the server is found.", async() => {
+        testOnGithubIt("doesn't time out for a long-running request when the server is found.", async() => {
             const indexName = 'bryantestidx';
 
             const scope = nock('http://example.org:9200')
@@ -293,7 +293,7 @@ describe('ElasticTools', () => {
          * "normal" for node applications. This being a rare circumstance, we've decided to punt on
          * the issue for now and may revisit it at a later time.
          */
-        // testOnGithubIt()("throws a timeout error when the server doesn't exist/doesn't respond.", async () => {
+        // testOnGithubIt("throws a timeout error when the server doesn't exist/doesn't respond.", async () => {
         //     const indexName = 'bryantestidx';
 
         //     const scope = nock('http://example.org:9200')
